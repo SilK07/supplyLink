@@ -73,9 +73,11 @@ export default function Inventory() {
   
   // Format currency
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
   };
   
@@ -261,7 +263,7 @@ export default function Inventory() {
                   
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="product-price" className="text-right">
-                      Price ($)
+                      Price (₹)
                     </Label>
                     <Input
                       id="product-price"

@@ -9,9 +9,9 @@ interface RetailContextType {
   // Products and Inventory
   products: Product[];
   findProduct: (barcode: string) => Product | undefined;
-  updateProduct: (productId: string, updates: Partial<Product>) => void;
-  updateQuantity: (productId: string, newQuantity: number) => void;
-  addProduct: (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateProduct: (productId: string, updates: Partial<Product>) => Promise<Product>;
+  updateQuantity: (productId: string, newQuantity: number) => Promise<void>;
+  addProduct: (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Product>;
   
   // Billing
   currentBillItems: BillItem[];
@@ -19,7 +19,7 @@ interface RetailContextType {
   removeFromBill: (index: number) => void;
   updateBillItemQuantity: (index: number, quantity: number) => void;
   clearBill: () => void;
-  createBill: (paymentMethod?: string, customerName?: string, customerPhone?: string) => Bill;
+  createBill: (paymentMethod?: string, customerName?: string, customerPhone?: string) => Promise<Bill>;
   
   // Bills and History
   bills: Bill[];
@@ -70,7 +70,22 @@ export function RetailProvider({ children }: { children: React.ReactNode }) {
           .order('created_at', { ascending: false });
 
         if (productsError) throw productsError;
-        setProducts(productsData);
+        const transformedProducts = productsData.map(product => ({
+          id: product.id,
+          name: product.name,
+          barcode: product.barcode,
+          category: product.category,
+          price: product.price,
+          quantity: product.quantity,
+          costPrice: product.cost_price,
+          imageUrl: product.image_url,
+          description: product.description,
+          createdAt: new Date(product.created_at),
+          updatedAt: new Date(product.updated_at),
+          salesCount: product.sales_count
+        }));
+
+        setProducts(transformedProducts);
 
         const { data: billsData, error: billsError } = await supabase
           .from('bills')
@@ -85,15 +100,35 @@ export function RetailProvider({ children }: { children: React.ReactNode }) {
           .order('created_at', { ascending: false });
 
         if (billsError) throw billsError;
-        setBills(billsData);
+        
+        const transformedBills = billsData.map(bill => ({
+          id: bill.id,
+          items: bill.bill_items.map(item => ({
+            product: {
+              ...item.product,
+              createdAt: new Date(item.product.created_at),
+              updatedAt: new Date(item.product.updated_at)
+            },
+            quantity: item.quantity,
+            totalPrice: item.total_price
+          })),
+          totalAmount: bill.total_amount,
+          createdAt: new Date(bill.created_at),
+          paymentMethod: bill.payment_method,
+          customerName: bill.customer_name,
+          customerPhone: bill.customer_phone,
+          status: bill.status as 'completed' | 'pending' | 'cancelled'
+        }));
+        
+        setBills(transformedBills);
 
-        const monthlySales = calculateMonthlySales(billsData);
+        const monthlySales = calculateMonthlySales(transformedBills);
         setSalesData(monthlySales);
 
-        const categorySalesData = calculateCategorySales(billsData);
+        const categorySalesData = calculateCategorySales(transformedBills);
         setCategorySales(categorySalesData);
 
-        const forecastsData = calculateProductForecasts(productsData, billsData);
+        const forecastsData = calculateProductForecasts(transformedProducts, transformedBills);
         setProductForecasts(forecastsData);
 
       } catch (error) {
@@ -114,9 +149,11 @@ export function RetailProvider({ children }: { children: React.ReactNode }) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const salesByMonth = new Array(12).fill(0);
     
-    bills.forEach(bill => {
-      const date = new Date(bill.createdAt);
-      salesByMonth[date.getMonth()] += Number(bill.totalAmount);
+    bills?.forEach(bill => {
+      if (bill?.createdAt) {
+        const date = new Date(bill.createdAt);
+        salesByMonth[date.getMonth()] += Number(bill.totalAmount || 0);
+      }
     });
 
     return months.map((name, index) => ({
@@ -128,16 +165,20 @@ export function RetailProvider({ children }: { children: React.ReactNode }) {
   const calculateCategorySales = (bills: Bill[]) => {
     const categoryTotals: { [key: string]: number } = {};
     
-    bills.forEach(bill => {
-      bill.items.forEach(item => {
-        const category = item.product.category;
-        categoryTotals[category] = (categoryTotals[category] || 0) + Number(item.totalPrice);
+    bills?.forEach(bill => {
+      bill.items?.forEach(item => {
+        if (item?.product?.category) {
+          const category = item.product.category;
+          categoryTotals[category] = (categoryTotals[category] || 0) + Number(item.totalPrice || 0);
+        }
       });
     });
 
+    const totalSales = bills?.reduce((sum, bill) => sum + Number(bill?.totalAmount || 0), 0) || 1;
+    
     return Object.entries(categoryTotals).map(([name, value]) => ({
       name,
-      value: Math.round((value / bills.reduce((sum, bill) => sum + Number(bill.totalAmount), 0)) * 100)
+      value: Math.round((value / totalSales) * 100)
     }));
   };
 
@@ -167,30 +208,44 @@ export function RetailProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
+      const transformedProduct: Product = {
+        id: data.id,
+        name: data.name,
+        barcode: data.barcode,
+        category: data.category,
+        price: data.price,
+        quantity: data.quantity,
+        costPrice: data.cost_price,
+        imageUrl: data.image_url,
+        description: data.description,
+        createdAt: new Date(data.created_at),
+        updatedAt: new Date(data.updated_at),
+        salesCount: data.sales_count
+      };
+
       setProducts(prev => 
         prev.map(product => 
-          product.id === productId ? { ...product, ...updates } : product
+          product.id === productId ? transformedProduct : product
         )
       );
 
-      return data;
+      return transformedProduct;
     } catch (error) {
       toast({
         title: "Error updating product",
         description: error instanceof Error ? error.message : "An error occurred",
         variant: "destructive",
       });
+      throw error;
     }
   };
 
   const updateQuantity = async (productId: string, newQuantity: number) => {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('products')
         .update({ quantity: newQuantity })
-        .eq('id', productId)
-        .select()
-        .single();
+        .eq('id', productId);
 
       if (error) throw error;
 
@@ -204,14 +259,13 @@ export function RetailProvider({ children }: { children: React.ReactNode }) {
         title: "Inventory Updated",
         description: `Quantity updated to ${newQuantity}`,
       });
-
-      return data;
     } catch (error) {
       toast({
         title: "Error updating quantity",
         description: error instanceof Error ? error.message : "An error occurred",
         variant: "destructive",
       });
+      throw error;
     }
   };
 
@@ -225,28 +279,46 @@ export function RetailProvider({ children }: { children: React.ReactNode }) {
           category: productData.category,
           price: productData.price,
           quantity: productData.quantity,
-          description: productData.description || null,
-          sales_count: 0
+          cost_price: productData.costPrice,
+          image_url: productData.imageUrl,
+          description: productData.description,
+          sales_count: productData.salesCount || 0
         }])
         .select()
         .single();
 
       if (error) throw error;
 
-      setProducts(prev => [...prev, data]);
+      const transformedProduct: Product = {
+        id: data.id,
+        name: data.name,
+        barcode: data.barcode,
+        category: data.category,
+        price: data.price,
+        quantity: data.quantity,
+        costPrice: data.cost_price,
+        imageUrl: data.image_url,
+        description: data.description,
+        createdAt: new Date(data.created_at),
+        updatedAt: new Date(data.updated_at),
+        salesCount: data.sales_count
+      };
+
+      setProducts(prev => [...prev, transformedProduct]);
 
       toast({
         title: "Product Added",
-        description: `${data.name} has been added to inventory`,
+        description: `${productData.name} added successfully`,
       });
 
-      return data;
+      return transformedProduct;
     } catch (error) {
       toast({
         title: "Error adding product",
         description: error instanceof Error ? error.message : "An error occurred",
         variant: "destructive",
       });
+      throw error;
     }
   };
 
@@ -286,20 +358,56 @@ export function RetailProvider({ children }: { children: React.ReactNode }) {
 
       if (itemsError) throw itemsError;
 
+      // Update product quantities and sales counts
       for (const item of currentBillItems) {
         const newQuantity = item.product.quantity - item.quantity;
-        await updateQuantity(item.product.id, newQuantity);
+        const newSalesCount = (item.product.salesCount || 0) + item.quantity;
+
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({ 
+            quantity: newQuantity,
+            sales_count: newSalesCount,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', item.product.id);
+
+        if (updateError) throw updateError;
+
+        // Update local state
+        setProducts(prev => 
+          prev.map(product => 
+            product.id === item.product.id 
+              ? { 
+                  ...product, 
+                  quantity: newQuantity,
+                  salesCount: newSalesCount,
+                  updatedAt: new Date()
+                }
+              : product
+          )
+        );
       }
 
-      setBills(prev => [bill, ...prev]);
+      // Transform the database response into a Bill type
+      const transformedBill: Bill = {
+        id: bill.id,
+        items: currentBillItems,
+        totalAmount: bill.total_amount,
+        createdAt: new Date(bill.created_at),
+        paymentMethod: bill.payment_method,
+        customerName: bill.customer_name,
+        customerPhone: bill.customer_phone,
+        status: 'completed' as const
+      };
+
+      // Update the bills state
+      setBills(prev => [...prev, transformedBill]);
+
+      // Clear the current bill
       clearBill();
 
-      toast({
-        title: "Sale Completed",
-        description: `Bill #${bill.id} created successfully`,
-      });
-
-      return bill;
+      return transformedBill;
     } catch (error) {
       toast({
         title: "Error creating bill",

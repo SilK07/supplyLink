@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -7,25 +6,28 @@ import {
   BarChart2, 
   Package, 
   Home, 
-  Bell 
+  Bell,
+  LogOut
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 export function Navbar() {
   const location = useLocation();
   const path = location.pathname;
+  const { signOut } = useAuth();
 
   return (
     <div className="bg-white border-b fixed top-0 w-full z-50">
       <div className="container mx-auto h-16 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold text-retail-700">
-            <Link to="/">Retail Insight</Link>
+            <Link to="/">Supply Link</Link>
           </h1>
         </div>
         
-        <div className="flex space-x-1">
+        <div className="flex items-center space-x-1">
           <NavButton 
             to="/" 
             icon={<Home size={20} />} 
@@ -50,9 +52,9 @@ export function Navbar() {
             label="Analytics" 
             isActive={path === "/analytics"} 
           />
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell size={20} />
-            <Badge className="absolute -top-1 -right-1 px-1.5 py-0.5 min-w-[1.25rem] h-5 flex items-center justify-center bg-red-500">3</Badge>
+          <Button variant="ghost" onClick={signOut} className="flex items-center gap-2">
+            <LogOut size={20} />
+            <span className="text-xs">Logout</span>
           </Button>
         </div>
       </div>

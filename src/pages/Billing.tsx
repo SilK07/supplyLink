@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   ShoppingCart, 
-  DollarSign, 
+  IndianRupee, 
   CreditCard, 
   Trash2, 
   ReceiptText,
@@ -367,7 +367,7 @@ export default function Billing() {
                         </div>
                         <SheetFooter className="mt-6">
                           <Button onClick={handleCompletePayment} className="w-full">
-                            <DollarSign className="mr-2 h-4 w-4" />
+                            <IndianRupee className="mr-2 h-4 w-4" />
                             Complete Payment
                           </Button>
                         </SheetFooter>

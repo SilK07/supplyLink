@@ -1,11 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LowStockAlert } from "@/components/LowStockAlert";
 import { useRetail } from "@/context/RetailContext";
+import { useAuth } from "@/context/AuthContext";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { LineChart, Line } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShoppingCart, Package, DollarSign, BarChart as BarChartIcon, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ShoppingCart, Package, IndianRupee, BarChart as BarChartIcon, ArrowUpRight, ArrowDownRight, LogOut } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const { 
@@ -20,6 +22,8 @@ export default function Dashboard() {
     isLoading
   } = useRetail();
 
+  const { signOut } = useAuth();
+
   const lowStockProducts = getLowStockProducts();
   const topSellingProducts = getTopSellingProducts();
   const totalRevenue = getTotalRevenue();
@@ -32,7 +36,7 @@ export default function Dashboard() {
       title: "Total Revenue",
       value: formatCurrency(totalRevenue),
       description: "Last 30 days",
-      icon: <DollarSign className="h-5 w-5 text-muted-foreground" />,
+      icon: <IndianRupee className="h-5 w-5 text-muted-foreground" />,
       change: "+12.5%",
       trend: "up" as const
     },
@@ -132,7 +136,7 @@ export default function Dashboard() {
                         <XAxis dataKey="name" />
                         <YAxis />
                         <Tooltip 
-                          formatter={(value) => [`$${value}`, 'Sales']} 
+                          formatter={(value) => [`₹${value}`, 'Sales']} 
                           labelFormatter={(label) => `Month: ${label}`}
                         />
                         <Bar dataKey="sales" fill="#14b8a6" />
@@ -146,7 +150,7 @@ export default function Dashboard() {
                         <XAxis dataKey="name" />
                         <YAxis />
                         <Tooltip 
-                          formatter={(value) => [`$${value}`, 'Sales']} 
+                          formatter={(value) => [`₹${value}`, 'Sales']} 
                           labelFormatter={(label) => `Month: ${label}`}
                         />
                         <Line type="monotone" dataKey="sales" stroke="#14b8a6" activeDot={{ r: 8 }} />
@@ -232,7 +236,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {bills.slice(0, 5).map((bill) => (
+                {bills?.slice(0, 5).map((bill) => (
                   <div key={bill.id} className="border-b pb-3 last:border-0 last:pb-0">
                     <div className="flex justify-between items-start">
                       <div>
@@ -243,7 +247,7 @@ export default function Dashboard() {
                       </div>
                       <p className="font-bold">{formatCurrency(bill.totalAmount)}</p>
                     </div>
-                    <p className="text-sm mt-1">{bill.items.length} items • {bill.paymentMethod}</p>
+                    <p className="text-sm mt-1">{bill.items?.length || 0} items • {bill.paymentMethod || 'N/A'}</p>
                   </div>
                 ))}
               </div>
